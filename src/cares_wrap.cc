@@ -861,6 +861,60 @@ class QuerySoaWrap: public QueryWrap {
   }
 };
 
+class QueryAnyWrap: public QueryWrap {
+  public:
+    QueryAnyWrap(Environment* env, Local<Object> req_wrap_obj)
+        :QueryWrap(env, req_wrap_obj) {
+
+    }
+
+    int Send(const char* name) override {
+      ares_query(env()->cares_channel(),
+                 name,
+                 ns_c_in,
+                 ns_t_any,
+                 Callback,
+                 GetQueryArg());
+      return 0;
+    }
+    size_t self_size() const override { return sizeof(*this); }
+
+  protected:
+   void Parse(unsigned char* buf, int len) override {
+     HandleScope handle_scope(env()->isolate());
+     Context::Scope context_scope(env()->context());
+
+    //  TODO - parse all ares
+     ares_any_reply* any_out;
+     int status = ares_parse_any_reply(buf, len, &any_out);
+
+     if (status != ARES_SUCCESS) {
+       ParseError(status);
+       return;
+     }
+
+     Local<Object> any_record = Object::New(env()->isolate());
+
+     any_record->Set(env()->nsname_string(),
+                     OneByteString(env()->isolate(), any_out->nsname));
+     any_record->Set(env()->hostmaster_string(),
+                     OneByteString(env()->isolate(), any_out->hostmaster));
+     any_record->Set(env()->serial_string(),
+                     Integer::New(env()->isolate(), any_out->serial));
+     any_record->Set(env()->refresh_string(),
+                     Integer::New(env()->isolate(), any_out->refresh));
+     any_record->Set(env()->retry_string(),
+                     Integer::New(env()->isolate(), any_out->retry));
+     any_record->Set(env()->expire_string(),
+                     Integer::New(env()->isolate(), any_out->expire));
+     any_record->Set(env()->minttl_string(),
+                     Integer::New(env()->isolate(), any_out->minttl));
+
+     ares_free_data(any_out);
+
+     this->CallOnComplete(any_record);
+   }
+};
 
 class GetHostByAddrWrap: public QueryWrap {
  public:
