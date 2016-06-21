@@ -861,11 +861,14 @@ class QuerySoaWrap: public QueryWrap {
   }
 };
 
+/**
+ * Query class using ns_t_any type. Performs all queries cares based queries and
+ * returns the results.
+ */
 class QueryAnyWrap: public QueryWrap {
   public:
     QueryAnyWrap(Environment* env, Local<Object> req_wrap_obj)
         :QueryWrap(env, req_wrap_obj) {
-
     }
 
     int Send(const char* name) override {
@@ -881,17 +884,23 @@ class QueryAnyWrap: public QueryWrap {
 
   protected:
    void Parse(unsigned char* buf, int len) override {
-     HandleScope handle_scope(env()->isolate());
-     Context::Scope context_scope(env()->context());
+    HandleScope handle_scope(env()->isolate());
+    Context::Scope context_scope(env()->context());
+    struct hostent* host;
 
+    int status = ares_parse_a_reply(buf, len, &host, nullptr, nullptr);
+    if (status != ARES_SUCCESS) {
+      ParseError(status);
+      return;
+    }
     //  TODO - parse all ares
-     ares_any_reply* any_out;
-     int status = ares_parse_any_reply(buf, len, &any_out);
+    ares_a_reply* a_out;
+    int status = ares_parse_a_reply(buf, len, &a_out);
 
-     if (status != ARES_SUCCESS) {
-       ParseError(status);
-       return;
-     }
+    if (status != ARES_SUCCESS) {
+      ParseError(status);
+      return;
+    }
 
      Local<Object> any_record = Object::New(env()->isolate());
 
